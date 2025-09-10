@@ -1,0 +1,12 @@
+/* Base reset for responsiveness */
+html, body, #root {
+  width: 100%;
+  min-height: 100%;
+}
+body {
+  margin: 0;
+  /* 允许在极端情况下横向滚动，而不是截断页面 */
+  overflow-x: auto;
+}
+
+@import "tailwindcss";
