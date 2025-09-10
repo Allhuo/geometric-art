@@ -75,7 +75,6 @@ const PALETTES = [
 ];
 
 const STYLE_OPTIONS = [
-  { id: "cubes", label: "Cubes" },
   { id: "concentric", label: "Concentric" },
   { id: "diamonds", label: "Diamonds" },
   { id: "orbs", label: "Orbs" },
@@ -89,6 +88,10 @@ const STYLE_OPTIONS = [
   { id: "rhombusWeave", label: "Rhombus Weave" },
   { id: "isoCubes", label: "Iso Cubes" },
   { id: "xOverlay", label: "X Overlay" },
+  { id: "flowRibbons", label: "Flow Ribbons" },
+  { id: "sunburst", label: "Sunburst" },
+  { id: "diagStripes", label: "Diag Stripes" },
+  { id: "concentricDiamonds", label: "Concentric Diamonds" },
 ];
 
 const ASPECT_RATIOS = [
@@ -99,7 +102,7 @@ const ASPECT_RATIOS = [
 
 export default function GenerativeGeometricArt() {
   const [aspectRatio, setAspectRatio] = useState("portrait");
-  const [style, setStyle] = useState("cubes");
+  const [style, setStyle] = useState("isoCubes");
   const [paletteIndex, setPaletteIndex] = useState(0);
   const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2, 9));
   const [useGradient, setUseGradient] = useState(true);
@@ -132,6 +135,7 @@ export default function GenerativeGeometricArt() {
   const [isoShade, setIsoShade] = useState(0.22); // 明暗强度
   const [isoUniform, setIsoUniform] = useState(true); // 每个立方体使用统一色系
   const [isoColorVariety, setIsoColorVariety] = useState(3); // 网格中使用的基色种类
+
   const canvasRef = useRef(null);
 
   const currentAspect = ASPECT_RATIOS.find(ar => ar.id === aspectRatio);
@@ -192,7 +196,6 @@ export default function GenerativeGeometricArt() {
 
     // Choose a drawing routine
     const drawMap = {
-      cubes: drawCubes,
       concentric: drawConcentric,
       diamonds: drawDiamonds,
       orbs: drawOrbs,
@@ -206,6 +209,10 @@ export default function GenerativeGeometricArt() {
       rhombusWeave: drawRhombusWeave,
       isoCubes: drawIsoCubes,
       xOverlay: drawXOverlay,
+      flowRibbons: drawFlowRibbons,
+      sunburst: drawSunburst,
+      diagStripes: drawDiagStripes,
+      concentricDiamonds: drawConcentricDiamonds,
     };
     drawMap[style](ctx, rnd, palette, { 
       w, h, useGradient, bg,
@@ -618,9 +625,9 @@ export default function GenerativeGeometricArt() {
                 </div>
               </ControlPanel>
             )}
-            {controlTab === 'style' && style !== 'orbTrail' && (
+            {controlTab === 'style' && style !== 'orbTrail' && style !== 'cornerSteps' && style !== 'isoCubes' && (
               <ControlPanel title="当前风格暂无高级参数" defaultOpen={true}>
-                <div className="text-xs text-gray-300">切换到 Orb Trail 以查看可调控的轨迹与间距参数。</div>
+                <div className="text-xs text-gray-300">切换到 Orb Trail、Corner Steps 或 Iso Cubes 以查看可调控参数。</div>
               </ControlPanel>
             )}
 
@@ -1173,6 +1180,139 @@ function drawGrid(ctx, rnd, palette, { w, h, useGradient }) {
   }
 }
 
+// New: Sunburst radial wedges from center
+function drawSunburst(ctx, rnd, palette, { w, h, useGradient }) {
+  const cx = w / 2, cy = h / 2;
+  const radius = Math.hypot(w, h) * 0.65;
+  const wedges = 14 + rnd.int(0, 10);
+  const colors = pickColors(rnd, palette, Math.min(6, wedges));
+  const rot = rnd() * Math.PI;
+  for (let i = 0; i < wedges; i++) {
+    const a0 = rot + (i / wedges) * Math.PI * 2;
+    const a1 = rot + ((i + 1) / wedges) * Math.PI * 2;
+    const c = colors[i % colors.length];
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a0) * radius, cy + Math.sin(a0) * radius);
+    ctx.lineTo(cx + Math.cos(a1) * radius, cy + Math.sin(a1) * radius);
+    ctx.closePath();
+    if (useGradient) {
+      const g = makeGradient(ctx, cx, cy, cx + Math.cos((a0+a1)/2)*radius, cy + Math.sin((a0+a1)/2)*radius, [lighten(c, 0.15), c]);
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = c;
+    }
+    ctx.fill();
+  }
+}
+
+// New: Diagonal stripes with varying width
+function drawDiagStripes(ctx, rnd, palette, { w, h, useGradient }) {
+  const angle = -Math.PI / 4; // -45°
+  const stripeW = Math.max(30, Math.min(w, h) * 0.08);
+  const count = Math.ceil((w + h) / stripeW) + 2;
+  const colors = pickColors(rnd, palette, 6);
+  ctx.save();
+  ctx.translate(w/2, h/2);
+  ctx.rotate(angle);
+  ctx.translate(-w/2, -h/2);
+  for (let i = -1; i < count; i++) {
+    const x = i * stripeW;
+    const c = colors[(i+1000) % colors.length];
+    ctx.fillStyle = useGradient ? makeGradient(ctx, x, 0, x+stripeW, h, [lighten(c, 0.1), c]) : c;
+    ctx.fillRect(x, -h, stripeW * 0.9, h*3); // slight gap for rhythm
+  }
+  ctx.restore();
+}
+
+// New: Concentric diamonds
+function drawConcentricDiamonds(ctx, rnd, palette, { w, h, useGradient }) {
+  const cx = w/2, cy = h/2;
+  const steps = 10 + rnd.int(0, 8);
+  const colors = pickColors(rnd, palette, Math.min(6, steps));
+  for (let i = steps; i >= 1; i--) {
+    const t = i / steps;
+    const dx = (w * 0.45) * t;
+    const dy = (h * 0.35) * t;
+    const c = colors[(steps - i) % colors.length];
+    ctx.beginPath();
+    ctx.moveTo(cx - dx, cy);
+    ctx.lineTo(cx, cy - dy);
+    ctx.lineTo(cx + dx, cy);
+    ctx.lineTo(cx, cy + dy);
+    ctx.closePath();
+    ctx.fillStyle = useGradient ? makeGradient(ctx, cx - dx, cy - dy, cx + dx, cy + dy, [lighten(c, 0.08), c]) : c;
+    ctx.fill();
+  }
+}
+
+// New: Flow Ribbons (thick–thin–thick bezier ribbons)
+function drawFlowRibbons(ctx, rnd, palette, { w, h, useGradient }) {
+  const ribbons = 3 + rnd.int(0, 3);
+  const colors = pickColors(rnd, palette, Math.min(6, ribbons + 2));
+
+  const bez = (t, p0, p1, p2, p3) => (
+    (
+      (1 - t) ** 3 * p0 +
+      3 * (1 - t) ** 2 * t * p1 +
+      3 * (1 - t) * t ** 2 * p2 +
+      t ** 3 * p3
+    )
+  );
+  const dbez = (t, p0, p1, p2, p3) => (
+    (
+      -3 * (1 - t) ** 2 * p0 +
+      (3 * (1 - t) ** 2 - 6 * (1 - t) * t) * p1 +
+      (6 * (1 - t) * t - 3 * t ** 2) * p2 +
+      3 * t ** 2 * p3
+    )
+  );
+
+  for (let i = 0; i < ribbons; i++) {
+    const c = colors[i % colors.length];
+    const a = i / (ribbons - 1 + 1e-6);
+    const y0 = h * (0.15 + 0.7 * a) + rnd() * 20 - 10;
+    const y1 = h * (0.15 + 0.7 * (1 - a)) + rnd() * 20 - 10;
+    const cp1 = { x: w * (0.25 + 0.1 * rnd()), y: y0 + (rnd() - 0.5) * h * 0.3 };
+    const cp2 = { x: w * (0.75 - 0.1 * rnd()), y: y1 + (rnd() - 0.5) * h * 0.3 };
+    const p0 = { x: -w * 0.05, y: y0 };
+    const p3 = { x: w * 1.05, y: y1 };
+
+    const samples = 90;
+    const left = [];
+    const right = [];
+    const baseW = Math.max(8, Math.min(w, h) * 0.06) * (0.9 + rnd() * 0.2);
+
+    for (let s = 0; s <= samples; s++) {
+      const t = s / samples;
+      const x = bez(t, p0.x, cp1.x, cp2.x, p3.x);
+      const y = bez(t, p0.y, cp1.y, cp2.y, p3.y);
+      const dx = dbez(t, p0.x, cp1.x, cp2.x, p3.x);
+      const dy = dbez(t, p0.y, cp1.y, cp2.y, p3.y);
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len; // 法向
+      // 厚薄节奏：厚-薄-厚
+      const wv = baseW * (0.55 + 0.45 * (1 + Math.cos(2 * Math.PI * t)) / 2);
+      left.push([x + nx * wv / 2, y + ny * wv / 2]);
+      right.push([x - nx * wv / 2, y - ny * wv / 2]);
+    }
+
+    // 组装多边形
+    ctx.beginPath();
+    ctx.moveTo(left[0][0], left[0][1]);
+    for (let k = 1; k < left.length; k++) ctx.lineTo(left[k][0], left[k][1]);
+    for (let k = right.length - 1; k >= 0; k--) ctx.lineTo(right[k][0], right[k][1]);
+    ctx.closePath();
+    if (useGradient) {
+      const g = makeGradient(ctx, left[0][0], left[0][1], right[Math.floor(right.length/2)][0], right[Math.floor(right.length/2)][1], [lighten(c, 0.15), c]);
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = withAlpha(c, 0.9);
+    }
+    ctx.fill();
+  }
+}
+
 // 7) Waves: flowing wave patterns with layered transparency
 function drawWaves(ctx, rnd, palette, { w, h, useGradient }) {
   const colors = pickColors(rnd, palette, 5);
@@ -1423,6 +1563,7 @@ function drawSpacedCube(ctx, centerX, centerY, rhombusW, rhombusH, topColor, lef
                  [rightColor, lighten(rightColor, -0.05)]) : rightColor;
   ctx.fill();
 }
+
 
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2);
