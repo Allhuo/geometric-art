@@ -2,8 +2,6 @@
 
 A powerful web-based tool for creating beautiful algorithmic art with customizable geometric patterns and colors. Built with React, Canvas API, and modern web technologies.
 
-![Geometric Art Preview](refer.png)
-
 ## ✨ Features
 
 ### 🎯 Multiple Art Styles
